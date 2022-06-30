@@ -7,11 +7,14 @@ import models
 from utils.metrics import metric
 from data_processing.Data_Handler import get_dataset
 
+import time
+
 class Exp_Basic(object):
     def __init__(self, cfg) -> None:
         self.cfg = cfg
-        self.device = cfg['exp']['device']
+        self.device = torch.device(cfg['exp']['device'])
         self.model = self._build_model()
+        self.model.to(self.device)
         
     def _build_model(self):
         return models.__dict__[self.cfg['model']['model_name']](self.cfg).float()
@@ -32,7 +35,7 @@ class Exp_Basic(object):
         return nn.L1Loss()
 
     def train(self):
-        # TODO: just for demo use, TO BE implemented
+        # TODO: just for demo, TO BE implemented
         epochs = self.cfg['exp']['train']['epochs']
         # TODO: get train and valid loader
         train_loader = self._create_loader("train")
@@ -44,34 +47,50 @@ class Exp_Basic(object):
 
         # train_loop
         for epoch in range(epochs):
-            for input, target in train_loader:
-                input = input.float().to(self.device)
-                target = target.float().to(self.device)
+            epoch_start_time = time.time()
+            loss_total = 0
+            iter_count = 0
+
+            for input, target, input_time, target_time in train_loader:
+                input, target, input_time, target_time = \
+                    input.float().to(self.device), target.float().to(self.device), input_time.float().to(self.device), target_time.float().to(self.device)
 
                 optimizer.zero_grad()
-                prediction = self.model(input)
+                prediction = self.model(input) if not self.cfg['model']['UseTimeFeature'] else self.model(input,input_time,target_time)
                 loss = loss_func(target, prediction)
-
+                iter_count += 1
                 loss.backward() 
                 optimizer.step()
+                loss_total += float(loss)
 
-    def test(self):
-        test_loader =self._create_loader("test")
-        # train_loop
+
+            print('| end of epoch {:3d} | time: {:5.2f}s | train_total_loss {:5.4f} '.format(epoch, (
+                    time.time() - epoch_start_time), loss_total / iter_count))
+
+            self.test(valid_loader)
+
+    def test(self, data_loader=None):
+        if data_loader is None:
+            data_loader = self._create_loader("test")
+
         self.model.eval()
         preds, trues = [], []
-        for input, target in test_loader:
-            input = input.float().to(self.device)
-            target = target.float().to(self.device)
-            prediction = self.model(input)
+
+        for input, target, input_time, target_time in data_loader:
+            input, target, input_time, target_time = \
+                input.float().to(self.device), target.float().to(self.device), input_time.float().to(self.device), target_time.float().to(self.device)
+            
+            prediction = self.model(input) if not self.cfg['model']['UseTimeFeature'] else self.model(input,input_time,target_time)
             prediction = prediction.detach().cpu().numpy()
             target = target.detach().cpu().numpy()
             preds.append(prediction)
             trues.append(target)
 
-        preds = np.array(preds)
-        preds = preds.reshape(-1, preds.shape[-2], preds.shape[-1])
-        trues = np.array(trues)
-        trues = np.array(trues).reshape(-1, trues.shape[-2], trues.shape[-1])
-        mae, mse, rmse, mape, mspe, rse, corr = metric(preds, trues)
 
+        preds, trues = np.array(preds),np.array(trues)
+        preds, trues = preds.reshape(-1, preds.shape[-2], preds.shape[-1]), trues.reshape(-1, trues.shape[-2], trues.shape[-1])
+        mae, mse, rmse, mape, mspe, rse, corr = metric(preds, trues)
+        print("------------TEST result:------------")
+        print("mae:", mae, " mse:",mse," rmse:",rmse)
+        # print("mape:",mape," mspe:",mspe," rse:",rse)
+        # print("corr:",corr)

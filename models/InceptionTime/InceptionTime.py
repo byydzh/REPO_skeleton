@@ -27,7 +27,7 @@ class InceptionModule(Module):
         self.act = nn.ReLU()
 
     def forward(self, x):
-        input_tensor = x
+        input_tensor = x;print("here")
         x = self.bottleneck(input_tensor)
         x = self.concat([l(x) for l in self.convs] + [self.maxconvpool(input_tensor)])
         return self.act(self.bn(x))
@@ -60,13 +60,13 @@ class InceptionTime(Module):
     # def __init__(self, c_in, c_out, seq_len=None, nf=32, nb_filters=None, **kwargs):
         self.num_layer = cfg['model']['num_layers']
         self.seq_len = cfg['data']['lookback']
-        c_in = cfg['data']['horizon']
-        c_out = c_in
-        # 属于瞎写，之后回来改吧...
+        c_in = cfg['data']['channel']
+        c_out = 1
         nf = ifnone(nf, nb_filters) # for compatibility
         self.inceptionblock = InceptionBlock(c_in, nf, **kwargs)
         self.gap = GAP1d(1)
         self.fc = nn.Linear(nf * 4, c_out)
+    
 
     def forward(self, x):
         x = self.inceptionblock(x)
