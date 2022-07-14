@@ -27,7 +27,7 @@ class InceptionModule(Module):
         self.act = nn.ReLU()
 
     def forward(self, x):
-        input_tensor = x;print("here")
+        input_tensor = x
         x = self.bottleneck(input_tensor)
         x = self.concat([l(x) for l in self.convs] + [self.maxconvpool(input_tensor)])
         return self.act(self.bn(x))
@@ -56,20 +56,22 @@ class InceptionBlock(Module):
 
 @delegates(InceptionModule.__init__)
 class InceptionTime(Module):
-    def __init__(self, cfg, nf=32, nb_filters=None, **kwargs):
+    def __init__(self, cfg, nf=8, nb_filters=None, **kwargs):
     # def __init__(self, c_in, c_out, seq_len=None, nf=32, nb_filters=None, **kwargs):
         self.num_layer = cfg['model']['num_layers']
         self.seq_len = cfg['data']['lookback']
-        c_in = cfg['data']['channel']
-        c_out = 1
+        c_in = cfg['model']['c_in']
+        c_out = cfg['model']['c_out']
         nf = ifnone(nf, nb_filters) # for compatibility
         self.inceptionblock = InceptionBlock(c_in, nf, **kwargs)
         self.gap = GAP1d(1)
-        self.fc = nn.Linear(nf * 4, c_out)
+        self.fc = nn.Linear(nf *4, c_out)
     
 
     def forward(self, x):
-        x = self.inceptionblock(x)
-        x = self.gap(x)
-        x = self.fc(x)
+        x = self.inceptionblock(x)# ;print(x.size())
+        #x = self.gap(x);print(x.size())
+        x = x.transpose(1,2)# ;print(x.size())
+        x = self.fc(x)# ;print(x.size())
+        x = x.transpose(1,2)# ;print(x.size())
         return x

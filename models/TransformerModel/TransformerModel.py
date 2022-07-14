@@ -23,8 +23,8 @@ class TransformerModel(nn.Module):
             bs (batch size) x nvars (aka variables, dimensions, channels) x seq_len (aka time steps)
             """
 
-        self.c_in = cfg['model']['input_dim']
-        self.c_out = 24
+        self.c_in = cfg['model']['c_in']
+        self.c_out = cfg['model']['c_out']
         self.d_model = cfg['model']['d_model']
         self.n_head = cfg['model']['n_head']
         self.d_ffn = cfg['model']['d_ffn']
@@ -32,8 +32,7 @@ class TransformerModel(nn.Module):
         self.activation = cfg['model']['activation']
         self.n_layers = cfg['model']['n_layers']
 
-        # self.permute = Permute(2, 0, 1)
-        self.permute = Permute(1, 0, 2)
+        self.permute = Permute(2, 0, 1)
         self.inlinear = nn.Linear(self.c_in, self.d_model)
         self.relu = nn.ReLU()
         encoder_layer = TransformerEncoderLayer(self.d_model, self.n_head, dim_feedforward=self.d_ffn, dropout=self.dropout, activation=self.activation)
@@ -44,12 +43,13 @@ class TransformerModel(nn.Module):
         self.outlinear = nn.Linear(self.d_model, self.c_out)
 
     def forward(self,x):
-        x = self.permute(x);print(x.size()) # bs x nvars x seq_len -> seq_len x bs x nvars
-        x = self.inlinear(x);print(x.size()) # seq_len x bs x nvars -> seq_len x bs x d_model
-        x = self.relu(x);print(x.size())
-        x = self.transformer_encoder(x);print(x.size())
-        x = self.transpose(x);print(x.size()) # seq_len x bs x d_model -> bs x seq_len x d_model
-        x = self.max(x);print(x.size())
-        x = self.relu(x);print(x.size())
-        x = self.outlinear(x);print(x.size())
+        x = self.permute(x)  # bs x nvars x seq_len -> seq_len x bs x nvars
+        x = self.inlinear(x) # seq_len x bs x nvars -> seq_len x bs x d_model
+        x = self.relu(x)
+        x = self.transformer_encoder(x)
+        x = self.transpose(x) # seq_len x bs x d_model -> bs x seq_len x d_model
+        # x = self.max(x);print(x.size())
+        x = self.relu(x)
+        x = self.outlinear(x)
+        x = x.transpose(1,2)
         return x
